@@ -1,0 +1,90 @@
+---
+title: "Accelerated failure time models"
+author: "Nathan Constantine-Cooke"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  github_document: default
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_float:
+      collapsed: no
+    number_sections: no
+    css: ../style.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This document demonstrates how to construct an AFT Weibull model.
+
+Two approaches will be presented. Firstly, via the  the `survival` package and
+secondly via the `flexsurv` package. We will once again be using the cancer 
+data-set from `survival`.
+
+```{R}
+library(survival, quietly = TRUE)
+library(flexsurv, quietly = TRUE)
+```
+
+## Via `survival`
+
+As with Kaplan-Meier and Cox propotional hazards models, we use `Surv()` to
+indicate the censoring/event time column and the censoring status column. To
+create an AFT model, we use `survreg()`- specifying the distribution via
+`dist`.
+
+
+```{R}
+survregWeibull <- survreg(Surv(futime, fustat) ~ ecog.ps + rx,
+                          ovarian,
+                          dist = "weibull")
+summary(survregWeibull)
+```
+
+Exponentiating our coefficients gives us results with a real-world
+interpretation. For instance, patients taking the non-reference medication
+could be expected to live 1.7 times longer than if they were taking the
+reference medication. 
+
+``` {R}
+exp(coef(survregWeibull))
+```
+
+We can also calculate the value of the shape parameter. 
+
+```{R}
+shapeParameter <- 1 / survregWeibull$scale
+shapeParameter
+```
+
+Note! `survival` has built-in support for the "weibull", "exponential", "gaussian",
+"logistic","lognormal" and "loglogistic distributions.
+
+## Via `flexsurv`
+
+The `flexsurv` package, in my opinion, offers much more utility for AFTs than
+`survival`. In addition to supporting all of the same distributions as
+`survival` (and more), `flexsurv` supports `plot()`.
+
+
+```{R}
+sWei  <- flexsurvreg(Surv(futime, fustat) ~ rx + ecog.ps,
+                     dist = 'weibull',
+                     data=ovarian)
+plot(sWei)
+```
+
+We can also plot the hazard function (or the cumulative hazard if we so wish)
+by specifying the `type` argument when using `plot()`
+
+```{R}
+plot(sWei, type = "hazard")
+```
+
+```{R}
+(sWei)
+```

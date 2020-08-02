@@ -1,0 +1,145 @@
+---
+title: "JM demonstration"
+author: "Nathan Constantine-Cooke"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    css: ../style.css
+    toc_float:
+      collapsed: false
+      number_sections: false
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+``` {R}
+library(lattice)
+library(JM, quietly = TRUE, warn.conflicts = FALSE)
+```
+
+`JM` by Dimitris Rizopoulos is one of the most popular packages for joint
+modeling of longitudinal and time-to-event data. `JM` includes a dataset, `aids`
+which will be used for this demonstration.
+
+``` {R}
+data(aids)
+knitr::kable(head(aids, 8))
+```
+
+## Running JM
+
+JM is easy to use. We simply fit a LME using the `nlme` package
+(which is loaded by JM).
+
+```{R}
+fitLME <- lme(sqrt(CD4) ~ obstime + obstime:drug,
+              random = ~ obstime | patient,
+              data = aids)
+summary(fitLME)
+```
+
+And fit a Cox proportional hazards model using the standard `survival` approach.
+Note the use of the `aids.id` dataset which uses only baseline measurements. 
+
+``` {R}
+fitSURV <- coxph(Surv(Time, death) ~ drug, data = aids.id, x = TRUE)
+summary(fitSURV)
+```
+
+We use the `JM::jointModel()` function to build our joint model. We pass
+the lme and coxph objects we have created, and provide the time variable from
+the LME. We provide a method argument to specify the type of joint model to fit.
+A full table of method arguments is included below. We can apply a time lag,
+and there is also support for competing risks when using
+`method = "spline-PH-GH"`. A full demonstration for competing risks can be found
+in the appropriate section. 
+
+```{R, cache = TRUE}
+fit.JM <- jointModel(fitLME,
+                     fitSURV,
+                     timeVar = "obstime",
+                     method = "piecewise-PH-GH",
+                     lag = 0, 
+                     CompRisk = FALSE)
+summary(fit.JM)
+```
+
+## Interpretting the output
+
+We are immediately presented with the call, typical for `summary()`. We are given
+some descriptive data: primarily the number of observations and the total number
+of events.
+
+We are then given statistics for the sub models. For the LME, we are given
+log-likelihood, AIC, and BIC as well as variance components. We are also given
+betas for the LME, alongside their respective standard errors, their z-values 
+(beta / standard error) and corresponding p-values.
+
+We are also provided with similar statistics for the survival model. 
+
+Convergence indicates if convergence was successful. 0 indicates successful
+convergence, whilst 1 indicates an issue. 
+
+## Table of `method` arguments
+
+|    method       |                                                description                                                | 
+| --------------- | --------------------------------------------------------------------------------------------------------  |
+|"weibull-AFT-GH" |          time-dependent Weibull model under the accelerated failure time formulation                      | 
+| "weibull-PH-GH" |       time-dependent relative risk model postulated with a Weibull baseline risk function                 |
+|"piecewise-PH-GH"| time-dependent relative risk model postulated with a piecewise constant baseline risk function            |
+|  "spline-PH-GH" | time-dependent relative risk model in which the log baseline risk function is approximated using B-splines|
+|   "ch-Laplace"  |               additive model on the log cumulative hazard scale (see Rizopoulos et al., 2009)             | 
+|   "Cox-PH-GH"   | time-dependent relative risk model where the baseline risk function is left unspecified (Wulfsohn and Tsiatis, 1997)|
+------------------------------------------------------------------------------------------------------------------------------
+
+## Competing risks
+
+It is possible to fit a Joint model with competing risks using the `JM`. For 
+this example, we will use the `pbc` data-set included with `JM`.
+
+```{R}
+data(pbc)
+knitr::kable(head(pbc, 8))
+```
+
+We fit a linear mixed model - similar to before. 
+
+```{R}
+lmeFit.pbc <- lme(log(serBilir) ~ drug * ns(year, 3),
+                  random = list(id = pdDiag(form = ~ ns(year, 3))),
+                  data = pbc2)
+```
+
+However for the survival model, we will use `JM::crLong` to convert the data to
+a long format. We also use the competing risks indicator as a stratification
+factor. 
+
+```{R}
+pbc2.idCR <- crLong(pbc2.id, "status", "alive")
+coxCRFit.pbc <- coxph(Surv(years, status2) ~ (drug + sex) * strata + strata(strata),
+                      data = pbc2.idCR,
+                      x = TRUE)
+```
+
+Then, we use `jointModel()`, setting `method = "spline-PH-aGH"` and
+`CompRisk = TRUE`. We include strata as an interaction factor to allow our
+longitudinal outcome to have a different effect for each of the two competing
+risks.
+
+``` {R Competing risk, cache = TRUE}
+jmCRFit.pbc <- jointModel(lmeFit.pbc,
+                          coxCRFit.pbc,
+                          timeVar = "year",
+                          method = "spline-PH-aGH",
+                          interFact = list(value = ~ strata, data = pbc2.idCR),
+                          CompRisk = TRUE)
+summary(jmCRFit.pbc)
+```

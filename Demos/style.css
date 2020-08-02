@@ -1,0 +1,16 @@
+/* CSS Stylesheet*/
+p {
+  font-size: 20px;
+}
+
+h1 {
+  color: #35457d;
+}
+
+h2 {
+  color: #232e53;
+}
+
+.hljs {
+  font-size: 15px;
+}
