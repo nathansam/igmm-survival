@@ -1,4 +1,4 @@
-# igmm-survival <img src="igc_logo.png" align="right" width="275" />
+# igc-survival <img src="igc_logo.png" align="right" width="275" />
 
 R Markdown documents/materials demonstrating how to conduct survival analysis.
 Originally, these files were created as part of the Institute of Genetics and
